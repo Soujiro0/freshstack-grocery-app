@@ -1,0 +1,80 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build APK & Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Dependencies & Build Web Assets
+        run: |
+          npm ci
+          npm run build
+
+      - name: Sync Capacitor Android Project
+        run: npx cap sync android
+
+      - name: Make Gradle Executable
+        run: chmod +x ./gradlew
+        working-directory: ./android
+
+      - name: Build Android APK
+        run: ./gradlew assembleDebug
+        working-directory: ./android
+
+      - name: Extract Version from package.json
+        id: extract_version
+        run: |
+          PKG_VERSION=$(jq -r '.version' package.json)
+          echo "version=${PKG_VERSION}" >> $GITHUB_OUTPUT
+          echo "Extracted version from package.json: ${PKG_VERSION}"
+
+      - name: Extract Release Notes from CHANGELOG.md
+        id: extract_notes
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            awk '/^## / { if (p) exit; p=1; print; next } p' CHANGELOG.md > release_notes.txt
+          else
+            echo "FreshTrack Grocery Release v${{ steps.extract_version.outputs.version }}" > release_notes.txt
+          fi
+          echo "Generated release notes:"
+          cat release_notes.txt
+
+      - name: Create GitHub Release & Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          name: FreshTrack Grocery v${{ steps.extract_version.outputs.version }}
+          body_path: release_notes.txt
+          files: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

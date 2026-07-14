@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FreshTrack</string>
+    <string name="title_activity_main">FreshTrack</string>
+    <string name="package_name">com.freshtrack.grocery</string>
+    <string name="custom_url_scheme">com.freshtrack.grocery</string>
+</resources>
