@@ -45,7 +45,7 @@ FreshTrack solves these problems by combining modern web ergonomics with native 
 ## 🛠️ How to Use & Get Started
 
 ### 1. Running Locally (Web Dev Server)
-Prerequisites: **Node.js 20+**
+Prerequisites: **Node.js 22+** (Required by Capacitor 8 CLI)
 ```bash
 # Clone or open the project repository
 cd grocery-list-app
