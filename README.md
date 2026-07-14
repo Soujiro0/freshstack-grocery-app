@@ -59,7 +59,7 @@ npm run dev
 Open your browser at `http://localhost:5173`. Use the top hamburger navigation menu (`Menu`) to slide between **My Daily List** and the **Staples Catalog Hub**.
 
 ### 2. Building & Testing Android APK Locally
-Prerequisites: **Java JDK 17+** and **Android SDK** (or Android Studio)
+Prerequisites: **Java JDK 21+** (Required by Capacitor 8 Android SDK) and **Android SDK** (or Android Studio)
 ```bash
 # 1. Build the production web bundle
 npm run build
