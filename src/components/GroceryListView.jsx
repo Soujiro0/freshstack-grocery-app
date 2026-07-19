@@ -1,12 +1,16 @@
-import { useState } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useGrocery } from '../store/GroceryContext'
-import { ShoppingBag, CheckCheck, Trash2, CheckCircle2, Plus, Receipt } from 'lucide-react'
+import { sortItems } from '../store/groceryReducer'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ShoppingBag, CheckCheck, Plus } from 'lucide-react'
 import GroceryItemRow from './GroceryItemRow'
 import EmptyState from './EmptyState'
 import ConfirmClearModal from './ConfirmClearModal'
 import AddItemModal from './AddItemModal'
 import SetPriceModal from './SetPriceModal'
 import DigitalReceiptModal from './DigitalReceiptModal'
+import SortControls from './SortControls'
+import BottomCartDrawer from './BottomCartDrawer'
 
 export default function GroceryListView() {
   const { state, actions } = useGrocery()
@@ -15,59 +19,112 @@ export default function GroceryListView() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [pricingModalItem, setPricingModalItem] = useState(null)
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false)
+  const [sortOrder, setSortOrder] = useState('default')
 
-  const uncheckedItems = items.filter((i) => !i.isChecked)
-  const checkedItems = items.filter((i) => i.isChecked)
-
-  const onCartTotal = checkedItems.reduce(
-    (sum, item) => sum + (item.price || 0) * (item.quantity || 1),
-    0,
+  const uncheckedItems = useMemo(
+    () => sortItems(items.filter((i) => !i.isChecked), sortOrder),
+    [items, sortOrder]
+  )
+  
+  const checkedItems = useMemo(
+    () => sortItems(items.filter((i) => i.isChecked), sortOrder),
+    [items, sortOrder]
   )
 
-  function handleToggleClick(item) {
-    if (!item.isChecked) {
-      // Before marking on cart, open modal for pricing per pcs
-      setPricingModalItem(item)
-    } else {
-      // Unchecking back to 'To Buy'
-      actions.toggleItem({ id: item.id })
-    }
-  }
+  const onCartTotal = useMemo(
+    () =>
+      checkedItems.reduce(
+        (sum, item) => sum + (item.price || 0) * (item.quantity || 1),
+        0
+      ),
+    [checkedItems]
+  )
 
-  function handleConfirmPrice({ id, price }) {
-    actions.updatePrice({ id, price })
-    actions.toggleItem({ id })
-    setPricingModalItem(null)
-  }
+  const progressPercent = useMemo(
+    () => (items.length > 0 ? Math.round((checkedItems.length / items.length) * 100) : 0),
+    [items.length, checkedItems.length]
+  )
+
+  const handleToggleClick = useCallback(
+    (item) => {
+      if (!item.isChecked) {
+        // Before marking on cart, open modal for pricing per pcs
+        setPricingModalItem(item)
+      } else {
+        // Unchecking back to 'To Buy'
+        actions.toggleItem({ id: item.id })
+      }
+    },
+    [actions]
+  )
+
+  const handleConfirmPrice = useCallback(
+    ({ id, price, quantity }) => {
+      actions.updatePrice({ id, price })
+      if (quantity !== undefined && pricingModalItem) {
+        const delta = quantity - (pricingModalItem.quantity || 1)
+        if (delta !== 0) {
+          actions.updateQuantity({ id, delta })
+        }
+      }
+      actions.toggleItem({ id })
+      setPricingModalItem(null)
+    },
+    [actions, pricingModalItem]
+  )
+
+  const handleRemove = useCallback((id) => actions.removeItem({ id }), [actions])
+  const handleRename = useCallback((id, newName) => actions.renameItem({ id, newName }), [actions])
+  const handleUpdateQuantity = useCallback((id, delta) => actions.updateQuantity({ id, delta }), [actions])
+  const handleUpdatePrice = useCallback((id, price) => actions.updatePrice({ id, price }), [actions])
+
+  const handleGenerateReceipt = useCallback(() => setIsReceiptModalOpen(true), [])
 
   return (
     <div className="px-6 pb-24 overflow-x-hidden">
-      {/* Top Bar: Summary pill & Add Item Button */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        {items.length > 0 ? (
-          <div className="flex items-center gap-1.5 rounded-full bg-surface border border-border/80 px-3.5 py-1.5 text-xs font-bold text-warm-dark">
-            <CheckCircle2 className="h-4 w-4 text-green" />
-            <span className="font-mono tabular-nums">
-              {checkedItems.length}/{items.length}
-            </span>
-            <span className="text-[11px] text-warm-gray font-normal ml-0.5">on cart</span>
+      {/* 1. Shopping Progress Bar full-length container without border (Wireframe Layout: input_file_3.png) */}
+      {items.length > 0 && (
+        <div className="mt-4 w-full">
+          <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-warm-gray mb-2">
+            <ShoppingBag className="h-4 w-4 text-green" />
+            <span>Shopping Progress</span>
           </div>
-        ) : (
-          <div />
-        )}
+          <div className="flex items-center justify-between text-xs mb-1.5 font-bold text-warm-dark">
+            <span className="font-mono text-xs text-warm-dark">
+              {checkedItems.length}/{items.length} items on cart
+            </span>
+            <span className="rounded-full bg-green/15 text-green font-mono font-black px-2 py-0.5 text-[11px]">
+              {progressPercent}%
+            </span>
+          </div>
+          <div className="h-2.5 w-full bg-border/40 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-green rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${progressPercent}%` }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            />
+          </div>
+        </div>
+      )}
 
+      {/* 2. Add Item & Sort Controls Row right below Shopping Progress on the right (input_file_0.png) */}
+      <div className="mt-4 flex items-center justify-end gap-2.5">
         <button
           type="button"
           onClick={() => setIsAddModalOpen(true)}
-          className="rounded-xl bg-green px-4 py-2.5 text-xs font-bold text-white transition-all hover:bg-green-light active:scale-[0.98] flex items-center gap-1.5 shadow-none ml-auto"
+          className="rounded-xl bg-green px-4 h-10 text-xs font-bold text-white transition-all hover:bg-green-light active:scale-[0.98] flex items-center gap-1.5 shadow-none"
         >
           <Plus className="h-4 w-4 stroke-2" />
           <span>Add Item</span>
         </button>
+        {items.length > 1 && (
+          <SortControls sortOrder={sortOrder} onSortChange={setSortOrder} />
+        )}
       </div>
 
       {/* Main List Section */}
-      <div className="mt-6">
+      <div className="mt-5">
         {items.length === 0 ? (
           <EmptyState
             icon={<ShoppingBag className="h-6 w-6 text-warm-gray stroke-[1.75]" />}
@@ -78,24 +135,33 @@ export default function GroceryListView() {
           <div className="space-y-10">
             {uncheckedItems.length > 0 && (
               <div>
-                <h2 className="mb-2 text-xs font-extrabold uppercase tracking-widest text-warm-gray flex items-center justify-between">
-                  <span>To Buy ({uncheckedItems.length})</span>
-                </h2>
+                <div className="mb-2.5 flex items-center justify-between">
+                  <h2 className="text-xs font-extrabold uppercase tracking-widest text-warm-gray">
+                    To Buy ({uncheckedItems.length})
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={actions.clearUnchecked}
+                    className="text-xs font-bold text-warm-gray hover:text-danger transition-colors flex items-center gap-1.5"
+                  >
+                    <CheckCheck className="h-3.5 w-3.5" />
+                    <span>Clear to buy</span>
+                  </button>
+                </div>
                 <div className="divide-y divide-border/50">
-                  {uncheckedItems.map((item) => (
-                    <GroceryItemRow
-                      key={item.id}
-                      item={item}
-                      onToggle={() => handleToggleClick(item)}
-                      onRemove={(id) => actions.removeItem({ id })}
-                      onUpdateQuantity={(delta) =>
-                        actions.updateQuantity({ id: item.id, delta })
-                      }
-                      onUpdatePrice={(price) =>
-                        actions.updatePrice({ id: item.id, price })
-                      }
-                    />
-                  ))}
+                  <AnimatePresence>
+                    {uncheckedItems.map((item) => (
+                      <GroceryItemRow
+                        key={item.id}
+                        item={item}
+                        onToggle={handleToggleClick}
+                        onRemove={handleRemove}
+                        onRename={handleRename}
+                        onUpdateQuantity={handleUpdateQuantity}
+                        onUpdatePrice={handleUpdatePrice}
+                      />
+                    ))}
+                  </AnimatePresence>
                 </div>
               </div>
             )}
@@ -116,64 +182,32 @@ export default function GroceryListView() {
                   </button>
                 </div>
                 <div className="divide-y divide-border/50">
-                  {checkedItems.map((item) => (
-                    <GroceryItemRow
-                      key={item.id}
-                      item={item}
-                      onToggle={() => handleToggleClick(item)}
-                      onRemove={(id) => actions.removeItem({ id })}
-                      onUpdateQuantity={(delta) =>
-                        actions.updateQuantity({ id: item.id, delta })
-                      }
-                      onUpdatePrice={(price) =>
-                        actions.updatePrice({ id: item.id, price })
-                      }
-                    />
-                  ))}
-                </div>
-
-                {/* On Cart Total Price section with divider line */}
-                <div className="mt-6 pt-4 border-t-2 border-border/80 flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-warm-dark">
-                    On Cart Total Price:
-                  </span>
-                  <span className="text-lg sm:text-xl font-black font-mono text-green tabular-nums">
-                    ₱
-                    {onCartTotal.toLocaleString('en-PH', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
-                </div>
-
-                {/* Generate Digital Receipt Button under On Cart Total Price */}
-                <div className="mt-4 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setIsReceiptModalOpen(true)}
-                    className="rounded-xl bg-green/10 border border-green/30 px-5 py-2.5 text-xs font-black text-green hover:bg-green hover:text-white transition-all active:scale-[0.98] inline-flex items-center gap-2 shadow-none"
-                  >
-                    <Receipt className="h-4 w-4 stroke-[2.25]" />
-                    <span>Generate Digital Receipt</span>
-                  </button>
+                  <AnimatePresence>
+                    {checkedItems.map((item) => (
+                      <GroceryItemRow
+                        key={item.id}
+                        item={item}
+                        onToggle={handleToggleClick}
+                        onRemove={handleRemove}
+                        onRename={handleRename}
+                        onUpdateQuantity={handleUpdateQuantity}
+                        onUpdatePrice={handleUpdatePrice}
+                      />
+                    ))}
+                  </AnimatePresence>
                 </div>
               </div>
             )}
-
-            {/* Global Clear All */}
-            <div className="pt-8 text-center">
-              <button
-                type="button"
-                onClick={() => setIsClearModalOpen(true)}
-                className="rounded-xl border border-border/80 bg-transparent px-5 py-2.5 text-xs font-bold text-warm-gray transition-colors hover:border-danger hover:bg-red-50 hover:text-danger active:scale-[0.98] inline-flex items-center gap-1.5"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>Clear Entire List</span>
-              </button>
-            </div>
           </div>
         )}
       </div>
+
+      {/* Bottom Cart Drawer docked right above BottomNav */}
+      <BottomCartDrawer
+        checkedItems={checkedItems}
+        onCartTotal={onCartTotal}
+        onGenerateReceipt={handleGenerateReceipt}
+      />
 
       {/* Add Item Modal */}
       <AddItemModal

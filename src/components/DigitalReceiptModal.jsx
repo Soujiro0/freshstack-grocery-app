@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { toPng } from 'html-to-image'
 import { Download, ArrowLeft, ShoppingCart, CheckCircle2, Loader2 } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
+import { Filesystem, Directory } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
 
 export default function DigitalReceiptModal({ isOpen, onClose, checkedItems = [], totalPrice = 0 }) {
   const [isGenerating, setIsGenerating] = useState(false)
@@ -51,10 +54,31 @@ export default function DigitalReceiptModal({ isOpen, onClose, checkedItems = []
       const now = new Date()
       const datePart = now.toISOString().slice(0, 10)
       const timePart = now.toTimeString().slice(0, 8).replace(/:/g, '')
-      const link = document.createElement('a')
-      link.download = `FreshTrack_Receipt_${datePart}_${timePart}.png`
-      link.href = dataUrl
-      link.click()
+      const filename = `FreshTrack_Receipt_${datePart}_${timePart}.png`
+
+      if (Capacitor.isNativePlatform()) {
+        const base64Data = dataUrl.split(',')[1]
+        await Filesystem.writeFile({
+          path: filename,
+          data: base64Data,
+          directory: Directory.Cache,
+        })
+        const fileUri = await Filesystem.getUri({
+          path: filename,
+          directory: Directory.Cache,
+        })
+        await Share.share({
+          title: 'FreshTrack Digital Receipt',
+          text: 'Here is your official digital receipt from FreshTrack Grocery.',
+          url: fileUri.uri,
+          dialogTitle: 'Save / Share Receipt',
+        })
+      } else {
+        const link = document.createElement('a')
+        link.download = filename
+        link.href = dataUrl
+        link.click()
+      }
     } catch (error) {
       console.error('Failed to generate digital receipt image:', error)
       alert('Could not generate image right now. Please try again.')
@@ -66,22 +90,31 @@ export default function DigitalReceiptModal({ isOpen, onClose, checkedItems = []
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-cream overflow-y-auto min-h-svh animate-fadeIn">
       {/* Top Sticky Navigation Bar of Pager */}
-      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-4 border-b border-border/60 bg-cream/95 px-6 py-4 backdrop-blur-md shadow-2xs">
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex items-center gap-2 rounded-xl bg-surface border border-border/80 px-4 py-2.5 text-xs sm:text-sm font-bold text-warm-dark hover:bg-cream-dark active:scale-95 transition-all shadow-none"
-        >
-          <ArrowLeft className="h-4 w-4 stroke-[2.5]" />
-          <span>Back to Grocery List</span>
-        </button>
+      <header className="sticky top-0 z-20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 bg-surface/95 px-4 sm:px-6 py-3.5 backdrop-blur-md shadow-xs">
+        <div className="flex items-center justify-between sm:justify-start gap-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center gap-2 rounded-xl bg-cream border border-border/80 px-3.5 py-2 text-xs sm:text-sm font-extrabold text-warm-dark hover:bg-cream-dark active:scale-95 transition-all shadow-none shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4 stroke-[2.5]" />
+            <span>Back</span>
+          </button>
+          <div className="sm:hidden text-xs font-black uppercase tracking-wider text-warm-dark">
+            Receipt Preview
+          </div>
+        </div>
 
-        <div className="flex items-center gap-3">
+        <div className="hidden sm:block text-sm font-black text-warm-dark tracking-tight">
+          Digital Receipt Preview
+        </div>
+
+        <div className="flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={handleDownloadImage}
             disabled={isGenerating || checkedItems.length === 0}
-            className="flex items-center gap-2 rounded-xl bg-green px-5 py-2.5 text-xs sm:text-sm font-black text-white hover:bg-green-light active:scale-95 disabled:opacity-50 disabled:pointer-events-none transition-all shadow-none"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-green px-5 py-2.5 text-xs sm:text-sm font-black text-white hover:bg-green-light active:scale-95 disabled:opacity-50 disabled:pointer-events-none transition-all shadow-none"
           >
             {isGenerating ? (
               <>
@@ -91,28 +124,35 @@ export default function DigitalReceiptModal({ isOpen, onClose, checkedItems = []
             ) : (
               <>
                 <Download className="h-4 w-4 stroke-[2.5]" />
-                <span>Download as Image (PNG)</span>
+                <span>Download Receipt (PNG)</span>
               </>
             )}
           </button>
         </div>
       </header>
 
-      {/* Whole Screen Pager Receipt Content Area - No Outer Border or Container */}
-      <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-8 py-8 sm:py-12 flex flex-col items-center justify-start">
+      {/* Whole Screen Pager Receipt Content Area */}
+      <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-10 flex flex-col items-center justify-start">
         <div
           ref={receiptRef}
-          className="w-full bg-white p-8 sm:p-14 text-warm-dark font-mono shadow-none border-none"
+          className="w-full bg-white rounded-2xl p-6 sm:p-12 text-warm-dark font-mono shadow-sm border border-border/40"
         >
           {/* Top Store Header */}
-          <div className="text-center pb-6 border-b-2 border-dashed border-border/80">
-            <div className="flex items-center justify-center gap-2.5 text-green font-black text-2xl sm:text-3xl tracking-tight font-sans">
+          <div className="text-center pb-6 border-b-2 border-dashed border-border/80 flex flex-col items-center">
+            <div className="h-14 w-14 rounded-2xl bg-green/10 text-green flex items-center justify-center mb-3.5 shadow-2xs border border-green/20">
               <ShoppingCart className="h-7 w-7 stroke-[2.5]" />
-              <span>FreshTrack Grocery</span>
             </div>
-            <p className="text-xs sm:text-sm text-warm-gray mt-1.5 font-sans font-bold uppercase tracking-wider">
-              Official Digital Receipt • Philippines
-            </p>
+            <div className="font-sans font-black text-2xl sm:text-3xl text-warm-dark tracking-tight">
+              FreshTrack Grocery
+            </div>
+            <div className="mt-1 flex items-center justify-center gap-2">
+              <span className="rounded-full bg-green/15 text-green font-sans font-extrabold px-2.5 py-0.5 text-[10px] uppercase tracking-widest">
+                Official Receipt
+              </span>
+              <span className="text-xs font-sans font-bold text-warm-gray">
+                • Philippines
+              </span>
+            </div>
           </div>
 
           {/* Receipt Metadata */}

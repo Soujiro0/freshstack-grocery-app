@@ -1,15 +1,39 @@
-import { useState } from 'react'
-import { Check, Trash2, ChevronDown, Plus, Minus } from 'lucide-react'
+import { useState, useEffect, memo } from 'react'
+import { Check, Plus, Minus, Pencil, X } from 'lucide-react'
+import { motion } from 'framer-motion'
+import ConfirmDeleteModal from './ConfirmDeleteModal'
 
-export default function GroceryItemRow({
+const GroceryItemRow = memo(function GroceryItemRow({
   item,
   onToggle,
   onRemove,
   onUpdateQuantity,
   onUpdatePrice,
+  onRename,
 }) {
   const { id, name, isChecked, quantity = 1, price = 0 } = item
-  const [isOpen, setIsOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editName, setEditName] = useState(name)
+  const [editPrice, setEditPrice] = useState(price)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+
+  // Quantity edit state
+  const [isEditingQuantity, setIsEditingQuantity] = useState(false)
+  const [editQuantity, setEditQuantity] = useState(quantity)
+
+  // Sync state if prop changes while editing
+  useEffect(() => {
+    if (!isEditing) {
+      setEditName(name)
+      setEditPrice(price)
+    }
+  }, [name, price, isEditing])
+
+  useEffect(() => {
+    if (!isEditingQuantity) {
+      setEditQuantity(quantity)
+    }
+  }, [quantity, isEditingQuantity])
 
   const isLongName = name.length > 24
   const isVeryLongName = name.length > 40
@@ -25,145 +49,272 @@ export default function GroceryItemRow({
     maximumFractionDigits: 2,
   })
 
+  function handleSaveRename() {
+    const trimmed = editName.trim()
+    if (trimmed && trimmed !== name && onRename) {
+      onRename(id, trimmed)
+    } else {
+      setEditName(name)
+    }
+
+    if (isChecked && onUpdatePrice) {
+      const parsedPrice = parseFloat(editPrice)
+      if (!isNaN(parsedPrice) && parsedPrice !== price) {
+        onUpdatePrice(id, Math.max(0, parsedPrice))
+      }
+    }
+    
+    setIsEditing(false)
+  }
+
+  function handleSaveQuantity() {
+    setIsEditingQuantity(false)
+    const parsed = parseInt(editQuantity, 10)
+    if (!isNaN(parsed) && parsed > 0 && parsed !== quantity) {
+      const delta = parsed - quantity
+      if (onUpdateQuantity) onUpdateQuantity(id, delta)
+    } else {
+      setEditQuantity(quantity)
+    }
+  }
+
   return (
-    <div
-      className={`group border-y py-4 px-6 -mx-6 transition-colors shadow-none ${
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      transition={{ duration: 0.2 }}
+      className={`group border-b last:border-b-0 py-3.5 px-4 sm:px-6 -mx-6 sm:mx-0 transition-colors shadow-none flex items-start gap-3.5 sm:gap-4 ${
         isChecked
-          ? 'bg-[#eef8f3] border-[#aadcbe]'
-          : 'border-border/60 bg-surface hover:bg-cream/20'
+          ? 'bg-[#eef8f3] border-border/40'
+          : 'border-border/40 bg-surface hover:bg-cream/30'
       }`}
     >
-      <div className="flex items-center justify-between gap-3">
-        <label
-          className="flex items-center gap-3.5 cursor-pointer flex-1 select-none min-w-0"
-          onClick={() => onToggle(id)}
+      {/* Left: Checkbox */}
+      {!isEditing && (
+        <div 
+          className="pt-1 cursor-pointer shrink-0"
+          onClick={() => onToggle(item)}
         >
           <div
-            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-all ${
+            className={`flex h-5 w-5 sm:h-[22px] sm:w-[22px] items-center justify-center rounded-[4px] border transition-all ${
               isChecked
-                ? 'border-green bg-green text-white'
-                : 'border-border bg-transparent hover:border-green'
+                ? 'border-green bg-green text-white shadow-sm'
+                : 'border-warm-gray/40 bg-white hover:border-green hover:bg-green/5'
             }`}
           >
-            {isChecked && <Check className="h-3.5 w-3.5 stroke-3 animate-check" />}
-          </div>
-          <div className="flex flex-col min-w-0 flex-1">
-            <span
-              className={`break-words transition-all ${nameSizeClass} ${
-                isChecked ? 'line-through text-warm-gray opacity-60' : 'text-warm-dark'
-              }`}
-            >
-              {name}
-            </span>
-            <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] font-mono text-warm-gray">
-              <span className="font-bold text-warm-dark">Qty: {quantity}</span>
-              {isChecked && (
-                <>
-                  <span>•</span>
-                  <span className="font-bold text-green">Total: ₱{formattedItemTotal}</span>
-                </>
-              )}
-            </div>
-          </div>
-        </label>
-
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setIsOpen(!isOpen)
-            }}
-            className="h-8 w-8 flex items-center justify-center text-warm-gray hover:text-warm-dark rounded-lg hover:bg-cream transition-colors"
-            aria-label={isOpen ? 'Hide quantity controls' : 'Show quantity controls'}
-            title="Adjust quantity"
-          >
-            <ChevronDown
-              className={`h-4 w-4 stroke-2 transition-transform duration-200 ${
-                isOpen ? 'rotate-180' : ''
-              }`}
-            />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onRemove(id)}
-            className="h-8 w-8 flex items-center justify-center text-warm-muted hover:text-danger rounded-lg hover:bg-red-50/50 transition-colors opacity-70 group-hover:opacity-100"
-            aria-label="Remove item"
-            title="Remove item"
-          >
-            <Trash2 className="h-4 w-4 stroke-2" />
-          </button>
-        </div>
-      </div>
-
-      {/* Dropdown containing Price Input (if on cart) & Quantity Stepper */}
-      {isOpen && (
-        <div
-          className="mt-3.5 pt-3.5 border-t border-border/50 flex flex-col gap-3"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {isChecked && (
-            <div className="flex items-center justify-between gap-4">
-              <label className="text-xs font-bold text-warm-gray whitespace-nowrap">
-                Price / qty (₱):
-              </label>
-              <div className="relative w-32 shrink-0">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-warm-gray">
-                  ₱
-                </span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={price || ''}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value)
-                    if (onUpdatePrice) {
-                      onUpdatePrice(isNaN(val) ? 0 : Math.max(0, val))
-                    }
-                  }}
-                  className="w-full rounded-lg bg-surface border border-border/80 pl-6 pr-2 py-1.5 text-xs font-mono font-bold text-warm-dark focus:border-green focus:outline-none shadow-none"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between gap-4">
-            <label className="text-xs font-bold text-warm-gray uppercase tracking-wider whitespace-nowrap">
-              Quantity:
-            </label>
-            <div className="flex items-center gap-2 rounded-lg bg-cream border border-border/80 p-1 shrink-0">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (onUpdateQuantity) onUpdateQuantity(-1)
-                }}
-                className="h-7 w-7 rounded flex items-center justify-center bg-surface border border-border/60 text-warm-dark hover:bg-cream-dark active:scale-95 font-bold shadow-none"
-                aria-label="Decrease quantity"
-              >
-                <Minus className="h-3.5 w-3.5 stroke-2" />
-              </button>
-              <span className="w-8 text-center text-xs font-mono font-bold text-warm-dark tabular-nums">
-                {quantity}
-              </span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (onUpdateQuantity) onUpdateQuantity(1)
-                }}
-                className="h-7 w-7 rounded flex items-center justify-center bg-surface border border-border/60 text-warm-dark hover:bg-cream-dark active:scale-95 font-bold shadow-none"
-                aria-label="Increase quantity"
-              >
-                <Plus className="h-3.5 w-3.5 stroke-2" />
-              </button>
-            </div>
+            {isChecked && <Check className="h-3.5 w-3.5 stroke-[3] animate-check" />}
           </div>
         </div>
       )}
-    </div>
+
+      {/* Right: Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 gap-2.5">
+        
+        {/* Top Row: Name and Remove */}
+        <div className="flex items-start justify-between gap-3 w-full">
+          <div className="flex-1 min-w-0 flex items-start gap-2 pt-0.5">
+            {isEditing ? (
+              <div className="flex items-center gap-1.5 w-full" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveRename()
+                    if (e.key === 'Escape') {
+                      setEditName(name)
+                      setEditPrice(price)
+                      setIsEditing(false)
+                    }
+                  }}
+                  autoFocus
+                  className="flex-1 min-w-0 rounded bg-white border border-green px-2 py-1 text-sm sm:text-base font-bold text-warm-dark focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20 shadow-inner"
+                  placeholder="Item name"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveRename}
+                  className="shrink-0 p-1 text-green hover:bg-green/10 rounded-md transition-colors"
+                  aria-label="Save"
+                >
+                  <Check className="h-[18px] w-[18px] stroke-[3]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditName(name)
+                    setEditPrice(price)
+                    setIsEditing(false)
+                  }}
+                  className="shrink-0 p-1 text-warm-dark hover:bg-warm-gray/10 rounded-md transition-colors"
+                  aria-label="Cancel"
+                >
+                  <X className="h-[18px] w-[18px] stroke-[2.5]" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <span
+                  onClick={() => onToggle(item)}
+                  className={`flex-1 min-w-0 break-words cursor-pointer ${nameSizeClass} ${
+                    isChecked ? 'line-through text-warm-gray opacity-70' : 'text-warm-dark'
+                  }`}
+                >
+                  {name}
+                </span>
+                {onRename && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setEditName(name)
+                      setEditPrice(price)
+                      setIsEditing(true)
+                    }}
+                    className="shrink-0 p-1 text-warm-gray hover:text-warm-dark rounded-md hover:bg-cream transition-colors opacity-70 hover:opacity-100"
+                    aria-label="Edit item"
+                  >
+                    <Pencil className="h-3.5 w-3.5 stroke-[2.5]" />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+
+          {!isEditing && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsDeleteModalOpen(true)
+              }}
+              className="shrink-0 text-[11px] sm:text-xs font-semibold text-warm-gray hover:text-danger pt-0.5 transition-colors"
+            >
+              Remove
+            </button>
+          )}
+        </div>
+
+        {/* Bottom Row: Price & Quantity */}
+        <div className="flex items-end justify-between gap-3 w-full min-h-[28px]">
+          {/* Price Area */}
+          <div className="flex-1 min-w-0 max-w-[150px]">
+            {isChecked ? (
+              isEditing ? (
+                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-warm-dark">
+                    ₱
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editPrice === 0 ? '' : editPrice}
+                    onChange={(e) => setEditPrice(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveRename()
+                      if (e.key === 'Escape') {
+                        setEditName(name)
+                        setEditPrice(price)
+                        setIsEditing(false)
+                      }
+                    }}
+                    className="w-full rounded bg-white border border-warm-gray/40 pl-6 pr-2 py-1 text-sm font-mono font-bold text-warm-dark focus:border-green focus:outline-none focus:ring-2 focus:ring-green/20 shadow-inner"
+                    placeholder="0.00"
+                  />
+                </div>
+              ) : (
+                <span 
+                  className="text-sm font-mono font-black text-warm-dark truncate cursor-pointer block"
+                  onClick={() => onToggle(item)}
+                >
+                  ₱{formattedItemTotal}
+                </span>
+              )
+            ) : (
+              <div className="w-full"></div>
+            )}
+          </div>
+
+          {/* Quantity Stepper directly on card */}
+          {!isEditing && (
+            <div 
+              className="flex items-center gap-1.5 rounded-md bg-warm-gray/15 p-1 shrink-0 ml-auto shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] border border-warm-gray/10 transition-all"
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (onUpdateQuantity) onUpdateQuantity(id, -1)
+                }}
+                className="h-[22px] w-[22px] rounded-full flex items-center justify-center bg-transparent text-warm-dark hover:bg-white hover:shadow-sm active:scale-95 transition-all"
+                aria-label="Decrease quantity"
+              >
+                <Minus className="h-3.5 w-3.5 stroke-[2.5]" />
+              </button>
+              
+              {isEditingQuantity ? (
+                <input
+                  type="number"
+                  min="1"
+                  autoFocus
+                  value={editQuantity === 0 ? '' : editQuantity}
+                  onChange={(e) => setEditQuantity(e.target.value)}
+                  onBlur={handleSaveQuantity}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveQuantity()
+                    if (e.key === 'Escape') {
+                      setEditQuantity(quantity)
+                      setIsEditingQuantity(false)
+                    }
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-10 text-center rounded bg-white border border-green py-0.5 text-xs font-bold text-warm-dark focus:outline-none focus:ring-2 focus:ring-green/20"
+                />
+              ) : (
+                <span 
+                  className="w-6 text-center text-xs font-bold text-warm-dark tabular-nums cursor-text hover:text-green"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setEditQuantity(quantity)
+                    setIsEditingQuantity(true)
+                  }}
+                  title="Edit Quantity"
+                >
+                  {quantity}
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (onUpdateQuantity) onUpdateQuantity(id, 1)
+                }}
+                className="h-[22px] w-[22px] rounded-full flex items-center justify-center bg-transparent text-warm-dark hover:bg-white hover:shadow-sm active:scale-95 transition-all"
+                aria-label="Increase quantity"
+              >
+                <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+              </button>
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      <ConfirmDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={() => {
+          setIsDeleteModalOpen(false)
+          onRemove(id)
+        }}
+        itemName={name}
+      />
+    </motion.div>
   )
-}
+})
+
+export default GroceryItemRow

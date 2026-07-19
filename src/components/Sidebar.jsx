@@ -1,9 +1,13 @@
 import { useEffect } from 'react'
 import { X, CheckSquare, BookOpen, Sparkles } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useGrocery } from '../store/GroceryContext'
 
-export default function Sidebar({ isOpen, onClose, activeView, setActiveView }) {
+export default function Sidebar({ isOpen, onClose }) {
   const { state } = useGrocery()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const activeView = location.pathname === '/catalog' ? 'catalog' : 'list'
   const itemsCount = (state.items || []).length
   const catalogCount = (state.catalog || []).length
 
@@ -27,8 +31,8 @@ export default function Sidebar({ isOpen, onClose, activeView, setActiveView }) 
 
   if (!isOpen) return null
 
-  function handleSelectView(view) {
-    setActiveView(view)
+  function handleSelectView(path) {
+    navigate(path)
     onClose()
   }
 
@@ -79,7 +83,7 @@ export default function Sidebar({ isOpen, onClose, activeView, setActiveView }) 
 
           <button
             type="button"
-            onClick={() => handleSelectView('list')}
+            onClick={() => handleSelectView('/')}
             className={`w-full flex items-center justify-between rounded-xl px-4 py-3 text-sm font-bold transition-all ${
               activeView === 'list'
                 ? 'bg-green/15 text-green border border-green/30 shadow-none'
@@ -103,7 +107,7 @@ export default function Sidebar({ isOpen, onClose, activeView, setActiveView }) 
 
           <button
             type="button"
-            onClick={() => handleSelectView('catalog')}
+            onClick={() => handleSelectView('/catalog')}
             className={`w-full flex items-center justify-between rounded-xl px-4 py-3 text-sm font-bold transition-all ${
               activeView === 'catalog'
                 ? 'bg-green/15 text-green border border-green/30 shadow-none'

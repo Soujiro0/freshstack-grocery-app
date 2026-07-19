@@ -1,27 +1,13 @@
-import { useState } from 'react'
+import { HashRouter } from 'react-router-dom'
 import { GroceryProvider } from './store/GroceryContext'
-import Layout from './components/Layout'
-import GroceryListView from './components/GroceryListView'
-import CatalogView from './components/CatalogView'
-
-function AppContent() {
-  const [activeView, setActiveView] = useState('list') // 'list' | 'catalog'
-
-  return (
-    <Layout activeView={activeView} setActiveView={setActiveView}>
-      {activeView === 'catalog' ? (
-        <CatalogView onSwitchToList={() => setActiveView('list')} />
-      ) : (
-        <GroceryListView />
-      )}
-    </Layout>
-  )
-}
+import AppRoutes from './routes/AppRoutes'
 
 export default function App() {
   return (
     <GroceryProvider>
-      <AppContent />
+      <HashRouter>
+        <AppRoutes />
+      </HashRouter>
     </GroceryProvider>
   )
 }

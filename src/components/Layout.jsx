@@ -1,12 +1,16 @@
 import { useState } from 'react'
 import { Menu } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
+import BottomNav from './BottomNav'
 
-export default function Layout({ children, activeView = 'list', setActiveView }) {
+export default function Layout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const location = useLocation()
+  const activeView = location.pathname === '/catalog' ? 'catalog' : 'list'
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-2xl flex-col bg-cream">
+    <div className="mx-auto flex min-h-svh max-w-2xl flex-col bg-cream pb-16">
       <header className="px-6 py-4 border-b border-border/50 bg-cream/95 backdrop-blur-sm sticky top-0 z-30 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
@@ -41,9 +45,9 @@ export default function Layout({ children, activeView = 'list', setActiveView })
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
-        activeView={activeView}
-        setActiveView={setActiveView}
       />
+
+      <BottomNav />
     </div>
   )
 }

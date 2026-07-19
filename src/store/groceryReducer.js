@@ -6,13 +6,28 @@ export const ACTION_TYPES = {
   REMOVE_ITEM: 'REMOVE_ITEM',
   UPDATE_QUANTITY: 'UPDATE_QUANTITY',
   UPDATE_PRICE: 'UPDATE_PRICE',
+  RENAME_ITEM: 'RENAME_ITEM',
   CLEAR_CHECKED: 'CLEAR_CHECKED',
+  CLEAR_UNCHECKED: 'CLEAR_UNCHECKED',
   CLEAR_ALL: 'CLEAR_ALL',
   ADD_TO_CATALOG: 'ADD_TO_CATALOG',
   REMOVE_FROM_CATALOG: 'REMOVE_FROM_CATALOG',
+  RENAME_CATALOG_ITEM: 'RENAME_CATALOG_ITEM',
   BATCH_ADD_TO_LIST: 'BATCH_ADD_TO_LIST',
   HYDRATE_STATE: 'HYDRATE_STATE',
 }
+
+export function sortItems(items = [], sortOrder = 'default') {
+  if (!Array.isArray(items)) return []
+  if (sortOrder === 'asc') {
+    return [...items].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  }
+  if (sortOrder === 'desc') {
+    return [...items].sort((a, b) => (b.name || '').localeCompare(a.name || ''))
+  }
+  return [...items]
+}
+
 
 /** @param {import('../types/contracts.js').GroceryState} state */
 /** @param {{ type: string, payload?: unknown }} action */
@@ -92,6 +107,13 @@ export function groceryReducer(state, action) {
       }
     }
 
+    case ACTION_TYPES.CLEAR_UNCHECKED: {
+      return {
+        ...state,
+        items: state.items.filter((item) => item.isChecked),
+      }
+    }
+
     case ACTION_TYPES.CLEAR_ALL: {
       return {
         ...state,
@@ -158,6 +180,34 @@ export function groceryReducer(state, action) {
       }
     }
 
+    case ACTION_TYPES.RENAME_ITEM: {
+      const { id, newName } = /** @type {{ id: string, newName: string }} */ (
+        action.payload || {}
+      )
+      const trimmed = (newName || '').trim()
+      if (!trimmed) return state
+      return {
+        ...state,
+        items: state.items.map((item) =>
+          item.id === id ? { ...item, name: trimmed } : item
+        ),
+      }
+    }
+
+    case ACTION_TYPES.RENAME_CATALOG_ITEM: {
+      const { id, newName } = /** @type {{ id: string, newName: string }} */ (
+        action.payload || {}
+      )
+      const trimmed = (newName || '').trim()
+      if (!trimmed) return state
+      return {
+        ...state,
+        catalog: (state.catalog || []).map((item) =>
+          item.id === id ? { ...item, name: trimmed } : item
+        ),
+      }
+    }
+
     default:
       return state
   }
@@ -187,6 +237,10 @@ export function clearChecked() {
   return { type: ACTION_TYPES.CLEAR_CHECKED }
 }
 
+export function clearUnchecked() {
+  return { type: ACTION_TYPES.CLEAR_UNCHECKED }
+}
+
 export function clearAll() {
   return { type: ACTION_TYPES.CLEAR_ALL }
 }
@@ -197,6 +251,14 @@ export function addToCatalog(payload) {
 
 export function removeFromCatalog(payload) {
   return { type: ACTION_TYPES.REMOVE_FROM_CATALOG, payload }
+}
+
+export function renameItem(payload) {
+  return { type: ACTION_TYPES.RENAME_ITEM, payload }
+}
+
+export function renameCatalogItem(payload) {
+  return { type: ACTION_TYPES.RENAME_CATALOG_ITEM, payload }
 }
 
 export function batchAddToList(payload) {
