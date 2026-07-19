@@ -1,10 +1,12 @@
 import { useEffect } from 'react'
-import { X, CheckSquare, BookOpen, Sparkles } from 'lucide-react'
+import { X, CheckSquare, BookOpen, Sparkles, DownloadCloud } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useGrocery } from '../store/GroceryContext'
+import { useUpdate } from '../contexts/UpdateContext'
 
 export default function Sidebar({ isOpen, onClose }) {
   const { state } = useGrocery()
+  const { hasUpdate, checkForUpdate } = useUpdate()
   const navigate = useNavigate()
   const location = useLocation()
   const activeView = location.pathname === '/catalog' ? 'catalog' : 'list'
@@ -128,6 +130,23 @@ export default function Sidebar({ isOpen, onClose }) {
               {catalogCount}
             </span>
           </button>
+          
+          {hasUpdate && (
+            <button
+              type="button"
+              onClick={() => {
+                checkForUpdate(true)
+                onClose()
+              }}
+              className="w-full flex items-center justify-between rounded-xl px-4 py-3 text-sm font-bold transition-all bg-green/15 text-green hover:bg-green/25 mt-4"
+            >
+              <div className="flex items-center gap-3">
+                <DownloadCloud className="h-5 w-5 stroke-[2.25]" />
+                <span>Update Available</span>
+              </div>
+              <span className="h-2 w-2 rounded-full bg-green animate-pulse" />
+            </button>
+          )}
         </div>
 
         {/* Sidebar Footer Info */}
