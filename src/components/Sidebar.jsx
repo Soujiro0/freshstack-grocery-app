@@ -153,7 +153,7 @@ export default function Sidebar({ isOpen, onClose }) {
         <div className="p-5 border-t border-border/60 bg-cream/40">
           <div className="flex items-center gap-2 text-xs font-bold text-warm-dark">
             <Sparkles className="h-4 w-4 text-green" />
-            <span>Pro Tip</span>
+            <span>Pro Tip!</span>
           </div>
           <p className="text-[11px] font-medium text-warm-gray mt-1 leading-relaxed">
             Add your favorite everyday items into your Staples Catalog so you can check them off in seconds anytime!
