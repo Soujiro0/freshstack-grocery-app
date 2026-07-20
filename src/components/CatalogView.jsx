@@ -195,9 +195,8 @@ export default function CatalogView({ onSwitchToList }) {
 
             return (
               <motion.div
-                layout
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={{ duration: 0.2 }}
                 key={item.id}
@@ -301,7 +300,7 @@ export default function CatalogView({ onSwitchToList }) {
 
       {/* Floating Batch Action Bar */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-0 right-0 z-40 px-4 flex justify-center animate-slideUp">
+        <div className="fixed bottom-6 left-0 right-0 z-40 px-4 flex justify-center animate-fadeIn">
           <div className="w-full max-w-md bg-warm-dark text-white rounded-2xl p-4 shadow-2xl flex items-center justify-between gap-4 border border-warm-gray/30">
             <div className="flex items-center gap-2.5">
               <div className="h-8 w-8 rounded-xl bg-green text-white font-black text-sm flex items-center justify-center">

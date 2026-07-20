@@ -52,9 +52,9 @@ export default function SortControls({ sortOrder = 'default', onSortChange }) {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 6, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 4, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
             className="absolute right-0 mt-1.5 w-48 origin-top-right rounded-2xl bg-surface border border-border/80 p-1.5 shadow-lg z-50 divide-y divide-border/40"
           >

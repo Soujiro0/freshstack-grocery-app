@@ -34,10 +34,10 @@ export default function ConfirmClearModal({ isOpen, onClose, onConfirm }) {
           onClick={onClose}
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ type: 'spring', duration: 0.35, bounce: 0.2 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
             className="w-full max-w-sm rounded-3xl border border-border/80 bg-surface p-6 sm:p-7 shadow-2xl relative"
             onClick={(e) => e.stopPropagation()}
           >

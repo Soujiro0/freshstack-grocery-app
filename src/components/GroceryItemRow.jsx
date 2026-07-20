@@ -80,9 +80,8 @@ const GroceryItemRow = memo(function GroceryItemRow({
 
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ duration: 0.2 }}
       className={`group border-b last:border-b-0 py-3.5 px-4 sm:px-6 -mx-6 sm:mx-0 transition-colors shadow-none flex items-start gap-3.5 sm:gap-4 ${

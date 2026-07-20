@@ -47,7 +47,7 @@ export default function Sidebar({ isOpen, onClose }) {
       onClick={onClose}
     >
       <div
-        className="w-80 max-w-[85vw] bg-surface h-full shadow-2xl flex flex-col border-r border-border/80 animate-slideRight"
+        className="w-80 max-w-[85vw] bg-surface h-full shadow-2xl flex flex-col border-r border-border/80 animate-fadeIn"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Sidebar Header */}
