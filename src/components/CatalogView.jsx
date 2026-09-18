@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react'
-import { Plus, Search, Trash2, BookOpen, Check, ArrowRight, Pencil, X } from 'lucide-react'
+import { Plus, Search, Trash2, BookOpen, Check, ArrowRight, Pencil } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useGrocery } from '../store/GroceryContext'
 import { sortItems } from '../store/groceryReducer'
 import AddCatalogItemModal from './AddCatalogItemModal'
 import SortControls from './SortControls'
 import ConfirmDeleteModal from './ConfirmDeleteModal'
+import EditCatalogItemDrawer from './EditCatalogItemDrawer'
 
 export default function CatalogView({ onSwitchToList }) {
   const { state, actions } = useGrocery()
@@ -13,8 +14,7 @@ export default function CatalogView({ onSwitchToList }) {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [sortOrder, setSortOrder] = useState('default')
-  const [editingId, setEditingId] = useState(null)
-  const [editName, setEditName] = useState('')
+  const [editingItem, setEditingItem] = useState(null)
   const [deletingItem, setDeletingItem] = useState(null)
 
   const catalogItems = state.catalog || []
@@ -75,18 +75,9 @@ export default function CatalogView({ onSwitchToList }) {
     })
   }
 
-  function handleStartRename(item, e) {
-    e.stopPropagation()
-    setEditingId(item.id)
-    setEditName(item.name)
-  }
-
-  function handleSaveRename(id) {
-    const trimmed = editName.trim()
-    if (trimmed && trimmed !== catalogItems.find((i) => i.id === id)?.name) {
-      actions.renameCatalogItem({ id, newName: trimmed })
-    }
-    setEditingId(null)
+  function handleSaveEdit({ id, newName, newPrice }) {
+    actions.updateCatalogItem({ id, newName, newPrice })
+    setEditingItem(null)
   }
 
   return (
@@ -191,7 +182,6 @@ export default function CatalogView({ onSwitchToList }) {
         <div className="space-y-2.5">
           {filteredItems.map((item) => {
             const isSelected = selectedIds.has(item.id)
-            const isEditing = editingId === item.id
 
             return (
               <motion.div
@@ -200,7 +190,7 @@ export default function CatalogView({ onSwitchToList }) {
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={{ duration: 0.2 }}
                 key={item.id}
-                onClick={() => !isEditing && handleToggleSelect(item.id)}
+                onClick={() => handleToggleSelect(item.id)}
                 className={`group relative flex items-center justify-between rounded-xl border p-4 transition-all cursor-pointer select-none ${
                   isSelected
                     ? 'bg-green/10 border-green text-warm-dark shadow-2xs'
@@ -208,90 +198,54 @@ export default function CatalogView({ onSwitchToList }) {
                 }`}
               >
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  {!isEditing && (
-                    <div
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-all ${
-                        isSelected
-                          ? 'border-green bg-green text-white'
-                          : 'border-border/80 bg-cream group-hover:border-warm-gray'
-                      }`}
-                    >
-                      {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
-                    </div>
-                  )}
+                  <div
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-all ${
+                      isSelected
+                        ? 'border-green bg-green text-white'
+                        : 'border-border/80 bg-cream group-hover:border-warm-gray'
+                    }`}
+                  >
+                    {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                  </div>
 
                   <div className="min-w-0 flex-1">
-                    {isEditing ? (
-                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveRename(item.id)
-                            if (e.key === 'Escape') setEditingId(null)
-                          }}
-                          autoFocus
-                          className="flex-1 rounded-lg bg-cream border border-green px-3 py-1 text-sm font-semibold text-warm-dark focus:outline-none shadow-xs"
-                          placeholder="Staple name"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleSaveRename(item.id)}
-                          className="h-8 w-8 rounded-lg bg-green text-white flex items-center justify-center font-bold shadow-xs hover:bg-green-dark"
-                          title="Save"
-                        >
-                          <Check className="h-4 w-4 stroke-[2.5]" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingId(null)}
-                          className="h-8 w-8 rounded-lg bg-surface border border-border text-warm-gray flex items-center justify-center hover:bg-cream hover:text-warm-dark"
-                          title="Cancel"
-                        >
-                          <X className="h-4 w-4 stroke-[2.5]" />
-                        </button>
+                    <div className="font-bold text-sm sm:text-base break-words">
+                      {item.name}
+                    </div>
+                    {item.defaultPrice > 0 && (
+                      <div className="text-xs font-semibold text-warm-gray mt-0.5">
+                        Default: ₱{item.defaultPrice.toFixed(2)} / pcs
                       </div>
-                    ) : (
-                      <>
-                        <div className="font-bold text-sm sm:text-base break-words">
-                          {item.name}
-                        </div>
-                        {item.defaultPrice > 0 && (
-                          <div className="text-xs font-semibold text-warm-gray mt-0.5">
-                            Default: ₱{item.defaultPrice.toFixed(2)} / pcs
-                          </div>
-                        )}
-                      </>
                     )}
                   </div>
                 </div>
 
-                {!isEditing && (
-                  <div className="flex items-center gap-1 pl-3">
-                    <button
-                      type="button"
-                      onClick={(e) => handleStartRename(item, e)}
-                      className="rounded-lg p-2 text-warm-gray hover:bg-cream hover:text-warm-dark transition-colors opacity-80 sm:opacity-0 sm:group-hover:opacity-100"
-                      title="Rename staple"
-                      aria-label="Rename staple"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setDeletingItem(item)
-                      }}
-                      className="rounded-lg p-2 text-warm-gray hover:bg-cream hover:text-red transition-colors opacity-80 sm:opacity-0 sm:group-hover:opacity-100"
-                      title="Remove from catalog"
-                      aria-label="Remove from catalog"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center gap-1 pl-3">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setEditingItem(item)
+                    }}
+                    className="rounded-lg p-2 text-warm-gray hover:bg-cream hover:text-warm-dark transition-colors opacity-80 sm:opacity-0 sm:group-hover:opacity-100"
+                    title="Edit staple"
+                    aria-label="Edit staple"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setDeletingItem(item)
+                    }}
+                    className="rounded-lg p-2 text-warm-gray hover:bg-cream hover:text-red transition-colors opacity-80 sm:opacity-0 sm:group-hover:opacity-100"
+                    title="Remove from catalog"
+                    aria-label="Remove from catalog"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </motion.div>
             )
           })}
@@ -300,7 +254,7 @@ export default function CatalogView({ onSwitchToList }) {
 
       {/* Floating Batch Action Bar */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-0 right-0 z-40 px-4 flex justify-center animate-fadeIn">
+        <div className="fixed bottom-24 left-0 right-0 z-40 px-4 flex justify-center animate-fadeIn">
           <div className="w-full max-w-md bg-warm-dark text-white rounded-2xl p-4 shadow-2xl flex items-center justify-between gap-4 border border-warm-gray/30">
             <div className="flex items-center gap-2.5">
               <div className="h-8 w-8 rounded-xl bg-green text-white font-black text-sm flex items-center justify-center">
@@ -333,6 +287,13 @@ export default function CatalogView({ onSwitchToList }) {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onAdd={(item) => actions.addToCatalog(item)}
+      />
+
+      <EditCatalogItemDrawer
+        isOpen={Boolean(editingItem)}
+        onClose={() => setEditingItem(null)}
+        item={editingItem}
+        onConfirm={handleSaveEdit}
       />
 
       <ConfirmDeleteModal

@@ -81,7 +81,7 @@ export default function GroceryListView() {
   const handleGenerateReceipt = useCallback(() => setIsReceiptModalOpen(true), [])
 
   return (
-    <div className="px-6 pb-24 overflow-x-hidden">
+    <div className="px-6 pb-56 overflow-x-hidden">
       {/* 1. Shopping Progress Bar full-length container without border (Wireframe Layout: input_file_3.png) */}
       {items.length > 0 && (
         <div className="mt-4 w-full">
@@ -213,7 +213,6 @@ export default function GroceryListView() {
       <AddItemModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onAdd={actions.addItem}
       />
 
       {/* Set Price per pcs Modal (Before marking on cart) */}

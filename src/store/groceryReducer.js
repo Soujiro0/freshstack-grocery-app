@@ -13,6 +13,7 @@ export const ACTION_TYPES = {
   ADD_TO_CATALOG: 'ADD_TO_CATALOG',
   REMOVE_FROM_CATALOG: 'REMOVE_FROM_CATALOG',
   RENAME_CATALOG_ITEM: 'RENAME_CATALOG_ITEM',
+  UPDATE_CATALOG_ITEM: 'UPDATE_CATALOG_ITEM',
   BATCH_ADD_TO_LIST: 'BATCH_ADD_TO_LIST',
   HYDRATE_STATE: 'HYDRATE_STATE',
 }
@@ -208,6 +209,22 @@ export function groceryReducer(state, action) {
       }
     }
 
+    case ACTION_TYPES.UPDATE_CATALOG_ITEM: {
+      const { id, newName, newPrice } = /** @type {{ id: string, newName: string, newPrice: number }} */ (
+        action.payload || {}
+      )
+      const trimmed = (newName || '').trim()
+      if (!trimmed) return state
+      return {
+        ...state,
+        catalog: (state.catalog || []).map((item) =>
+          item.id === id
+            ? { ...item, name: trimmed, defaultPrice: Math.max(0, newPrice || 0) }
+            : item
+        ),
+      }
+    }
+
     default:
       return state
   }
@@ -267,4 +284,8 @@ export function batchAddToList(payload) {
 
 export function hydrateState(payload) {
   return { type: ACTION_TYPES.HYDRATE_STATE, payload }
+}
+
+export function updateCatalogItem(payload) {
+  return { type: ACTION_TYPES.UPDATE_CATALOG_ITEM, payload }
 }
