@@ -1,14 +1,20 @@
 import { useState, useRef, useEffect } from 'react'
 import { toPng } from 'html-to-image'
-import { Download, ArrowLeft, ShoppingCart, CheckCircle2, Loader2 } from 'lucide-react'
+import { Download, ArrowLeft, ShoppingCart, CheckCircle2, Loader2, Share2 } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
-import { Filesystem, Directory } from '@capacitor/filesystem'
-import { Share } from '@capacitor/share'
+import { buildReceiptFilename, saveReceiptImage, shareReceiptImage } from '../utils/receiptExport'
 
 export default function DigitalReceiptModal({ isOpen, onClose, checkedItems = [], totalPrice = 0 }) {
-  const [isGenerating, setIsGenerating] = useState(false)
+  const [busyAction, setBusyAction] = useState(null) // 'save' | 'share' | null
+  const [savedLocation, setSavedLocation] = useState(null)
   const [receiptNumber] = useState(() => Math.floor(100000 + Math.random() * 900000))
   const receiptRef = useRef(null)
+  const isNative = Capacitor.isNativePlatform()
+  const isBusy = busyAction !== null
+
+  useEffect(() => {
+    if (isOpen) setSavedLocation(null)
+  }, [isOpen])
 
   useEffect(() => {
     function handleKeyDown(e) {
@@ -42,48 +48,47 @@ export default function DigitalReceiptModal({ isOpen, onClose, checkedItems = []
     minute: '2-digit',
   })
 
+  async function renderReceiptPng() {
+    return toPng(receiptRef.current, {
+      cacheBust: true,
+      pixelRatio: 2,
+      backgroundColor: '#FFFFFF',
+    })
+  }
+
   async function handleDownloadImage() {
     if (!receiptRef.current) return
-    setIsGenerating(true)
+    setBusyAction('save')
     try {
-      const dataUrl = await toPng(receiptRef.current, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: '#FFFFFF',
-      })
-      const now = new Date()
-      const datePart = now.toISOString().slice(0, 10)
-      const timePart = now.toTimeString().slice(0, 8).replace(/:/g, '')
-      const filename = `FreshTrack_Receipt_${datePart}_${timePart}.png`
-
-      if (Capacitor.isNativePlatform()) {
-        const base64Data = dataUrl.split(',')[1]
-        await Filesystem.writeFile({
-          path: filename,
-          data: base64Data,
-          directory: Directory.Cache,
-        })
-        const fileUri = await Filesystem.getUri({
-          path: filename,
-          directory: Directory.Cache,
-        })
-        await Share.share({
-          title: 'FreshTrack Digital Receipt',
-          text: 'Here is your official digital receipt from FreshTrack Grocery.',
-          url: fileUri.uri,
-          dialogTitle: 'Save / Share Receipt',
-        })
-      } else {
-        const link = document.createElement('a')
-        link.download = filename
-        link.href = dataUrl
-        link.click()
-      }
+      const dataUrl = await renderReceiptPng()
+      const result = await saveReceiptImage(dataUrl, buildReceiptFilename())
+      if (result.method === 'saved') setSavedLocation(result.location)
     } catch (error) {
-      console.error('Failed to generate digital receipt image:', error)
-      alert('Could not generate image right now. Please try again.')
+      console.error('Failed to save digital receipt image:', error)
+      alert(
+        error?.code === 'PERMISSION_DENIED'
+          ? 'Storage permission is needed to save the receipt. Please allow it and try again.'
+          : 'Could not save the image right now. Please try again.'
+      )
     } finally {
-      setIsGenerating(false)
+      setBusyAction(null)
+    }
+  }
+
+  async function handleShareImage() {
+    if (!receiptRef.current) return
+    setBusyAction('share')
+    try {
+      const dataUrl = await renderReceiptPng()
+      await shareReceiptImage(dataUrl, buildReceiptFilename())
+    } catch (error) {
+      // Closing the share sheet without picking an app also rejects; ignore that
+      if (!/cancel/i.test(error?.message || '')) {
+        console.error('Failed to share digital receipt image:', error)
+        alert('Could not share the image right now. Please try again.')
+      }
+    } finally {
+      setBusyAction(null)
     }
   }
 
@@ -109,17 +114,17 @@ export default function DigitalReceiptModal({ isOpen, onClose, checkedItems = []
           Digital Receipt Preview
         </div>
 
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex items-center justify-end gap-2.5">
           <button
             type="button"
             onClick={handleDownloadImage}
-            disabled={isGenerating || checkedItems.length === 0}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-green px-5 py-2.5 text-xs sm:text-sm font-black text-white hover:bg-green-light active:scale-95 disabled:opacity-50 disabled:pointer-events-none transition-all shadow-none"
+            disabled={isBusy || checkedItems.length === 0}
+            className="flex-1 sm:flex-none sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-green px-5 py-2.5 text-xs sm:text-sm font-black text-white hover:bg-green-light active:scale-95 disabled:opacity-50 disabled:pointer-events-none transition-all shadow-none"
           >
-            {isGenerating ? (
+            {busyAction === 'save' ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Generating Image...</span>
+                <span>Saving Image...</span>
               </>
             ) : (
               <>
@@ -128,8 +133,38 @@ export default function DigitalReceiptModal({ isOpen, onClose, checkedItems = []
               </>
             )}
           </button>
+          {isNative && (
+            <button
+              type="button"
+              onClick={handleShareImage}
+              disabled={isBusy || checkedItems.length === 0}
+              className="flex items-center justify-center gap-2 rounded-xl bg-surface border border-border/80 px-4 py-2.5 text-xs sm:text-sm font-black text-warm-dark hover:bg-cream active:scale-95 disabled:opacity-50 disabled:pointer-events-none transition-all shadow-none shrink-0"
+              aria-label="Share receipt"
+            >
+              {busyAction === 'share' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Share2 className="h-4 w-4 stroke-[2.5]" />
+              )}
+              <span>Share</span>
+            </button>
+          )}
         </div>
       </header>
+
+      {savedLocation && (
+        <div
+          role="status"
+          className="mx-auto mt-4 w-full max-w-3xl px-4 sm:px-8"
+        >
+          <div className="flex items-center gap-2 rounded-xl bg-green-muted border border-green-border px-4 py-3 text-xs sm:text-sm font-bold text-green">
+            <CheckCircle2 className="h-4 w-4 shrink-0 stroke-[2.5]" />
+            <span className="min-w-0 break-words">
+              Saved to your Gallery: {savedLocation}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Whole Screen Pager Receipt Content Area */}
       <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-10 flex flex-col items-center justify-start">

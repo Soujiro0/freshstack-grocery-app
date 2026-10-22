@@ -84,7 +84,7 @@ const GroceryItemRow = memo(function GroceryItemRow({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ duration: 0.2 }}
-      className={`group border-b last:border-b-0 py-3.5 px-4 sm:px-6 -mx-6 sm:mx-0 transition-colors shadow-none flex items-start gap-3.5 sm:gap-4 ${
+      className={`group border-b last:border-b-0 py-3.5 px-4 sm:px-6 -mx-4 sm:mx-0 transition-colors shadow-none flex items-start gap-3.5 sm:gap-4 ${
         isChecked
           ? 'bg-[#eef8f3] border-border/40'
           : 'border-border/40 bg-surface hover:bg-cream/30'

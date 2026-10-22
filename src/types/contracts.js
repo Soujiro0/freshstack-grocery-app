@@ -4,7 +4,8 @@
  *   name: string,
  *   isChecked: boolean,
  *   quantity?: number,
- *   price?: number
+ *   price?: number,
+ *   catalogId?: string
  * }} GroceryItem
  */
 

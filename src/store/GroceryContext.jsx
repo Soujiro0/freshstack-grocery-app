@@ -15,6 +15,7 @@ import {
   renameItem,
   renameCatalogItem,
   updateCatalogItem,
+  importCatalog,
   batchAddToList,
   hydrateState,
 } from './groceryReducer'
@@ -63,6 +64,7 @@ export function GroceryProvider({ children }) {
       renameItem: (payload) => dispatch(renameItem(payload)),
       renameCatalogItem: (payload) => dispatch(renameCatalogItem(payload)),
       updateCatalogItem: (payload) => dispatch(updateCatalogItem(payload)),
+      importCatalog: (payload) => dispatch(importCatalog(payload)),
       batchAddToList: (payload) => dispatch(batchAddToList(payload)),
       hydrateState: (payload) => dispatch(hydrateState(payload)),
     }),

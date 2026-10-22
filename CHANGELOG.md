@@ -4,6 +4,25 @@ All notable changes to the FreshTrack Grocery project will be documented in this
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-10-22
+
+### Added
+- **Catalog ↔ List price sync**: Editing a staple's price updates its matching "To Buy" items, and setting a price on the list (e.g. *Mark on Cart*) saves it back as the staple's default. Items already "On Cart" keep the price confirmed at the store.
+- **`catalogId` link**: List items added from the catalog remember their staple, so the link survives renames. Older and hand-typed items are matched by name.
+- **"On list" badge** on catalog staples already on today's list, plus an "N on list" count.
+- **Save receipt to phone (Android)**: *Download Receipt (PNG)* now saves into **Pictures/FreshTrack** (visible in Gallery / Files) via a native `FileSaver` plugin. A separate **Share** button keeps the share-sheet option.
+- **Catalog import / export (CSV)**: Export your staples from the Catalog's **⋯** menu (saved to **Download/FreshTrack** on Android) and import a CSV back. Imports merge by name (new staples added, matching prices updated, nothing deleted) and show a summary to confirm first. Works with spreadsheet-edited files: optional header, `₱` / `PHP` prices, quoted names.
+
+### Changed
+- **Catalog page redesign** to match the List page: summary header, one-line search / Add Staple / Sort row, full-width divided rows, and a docked selection bar above the bottom nav.
+- Tighter 16px side gutters on the header, List and Catalog pages.
+
+### Fixed
+- Catalog "Select all" now works correctly while a search is active.
+- Catalog rows are reachable with the keyboard (Tab + Space).
+- Removed catalog rows now play their exit animation.
+- Receipt export on Android only opened the share sheet and never saved the image to the device.
+
 ## [Unreleased]
 
 ### Added

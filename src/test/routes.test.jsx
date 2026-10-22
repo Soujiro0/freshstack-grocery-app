@@ -40,6 +40,6 @@ describe('Navigation and Routes TDD', () => {
     )
 
     // Should render Staple Catalog Hub header or search bar
-    expect(screen.getByPlaceholderText(/search your staples catalog/i)).toBeDefined()
+    expect(screen.getByPlaceholderText(/search staples/i)).toBeDefined()
   })
 })

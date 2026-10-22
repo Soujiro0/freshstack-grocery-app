@@ -1,12 +1,19 @@
-import { useState, useMemo } from 'react'
-import { Plus, Search, Trash2, BookOpen, Check, ArrowRight, Pencil } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
+import { Plus, Search, BookOpen, CheckCheck, Upload, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { AnimatePresence } from 'framer-motion'
 import { useGrocery } from '../store/GroceryContext'
-import { sortItems } from '../store/groceryReducer'
+import { sortItems, findCatalogItemFor, mergeCatalog } from '../store/groceryReducer'
+import { parseCatalogCsv } from '../utils/catalogCsv'
+import { exportCatalogCsv } from '../utils/catalogTransfer'
+import CatalogDataMenu from './CatalogDataMenu'
+import ImportCatalogModal from './ImportCatalogModal'
 import AddCatalogItemModal from './AddCatalogItemModal'
 import SortControls from './SortControls'
 import ConfirmDeleteModal from './ConfirmDeleteModal'
 import EditCatalogItemDrawer from './EditCatalogItemDrawer'
+import EmptyState from './EmptyState'
+import CatalogItemRow from './CatalogItemRow'
+import CatalogSelectionBar from './CatalogSelectionBar'
 
 export default function CatalogView({ onSwitchToList }) {
   const { state, actions } = useGrocery()
@@ -16,8 +23,19 @@ export default function CatalogView({ onSwitchToList }) {
   const [sortOrder, setSortOrder] = useState('default')
   const [editingItem, setEditingItem] = useState(null)
   const [deletingItem, setDeletingItem] = useState(null)
+  const [pendingImport, setPendingImport] = useState(null) // { fileName, items, added, updated, unchanged, skipped }
+  const [notice, setNotice] = useState(null) // { tone: 'success' | 'error', text }
+  const fileInputRef = useRef(null)
 
   const catalogItems = state.catalog || []
+
+  // Auto-hide the import/export notice
+  useEffect(() => {
+    if (!notice) return undefined
+    const timer = setTimeout(() => setNotice(null), 5000)
+    return () => clearTimeout(timer)
+  }, [notice])
+  const isSearching = Boolean(searchQuery.trim())
 
   const filteredItems = useMemo(() => {
     let result = state.catalog || []
@@ -28,7 +46,22 @@ export default function CatalogView({ onSwitchToList }) {
     return sortItems(result, sortOrder)
   }, [state.catalog, searchQuery, sortOrder])
 
-  function handleToggleSelect(id) {
+  // Staple ids that have a linked item on today's list (by catalogId, else by name)
+  const onListIds = useMemo(() => {
+    const ids = new Set()
+    for (const item of state.items || []) {
+      const linked = findCatalogItemFor(item, state.catalog || [])
+      if (linked) ids.add(linked.id)
+    }
+    return ids
+  }, [state.items, state.catalog])
+
+  const onListCount = onListIds.size
+
+  const allFilteredSelected =
+    filteredItems.length > 0 && filteredItems.every((item) => selectedIds.has(item.id))
+
+  const handleToggleSelect = useCallback((id) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) {
@@ -38,14 +71,18 @@ export default function CatalogView({ onSwitchToList }) {
       }
       return next
     })
-  }
+  }, [])
 
   function handleSelectAll() {
-    if (selectedIds.size === filteredItems.length && filteredItems.length > 0) {
-      setSelectedIds(new Set())
-    } else {
-      setSelectedIds(new Set(filteredItems.map((item) => item.id)))
-    }
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (allFilteredSelected) {
+        filteredItems.forEach((item) => next.delete(item.id))
+      } else {
+        filteredItems.forEach((item) => next.add(item.id))
+      }
+      return next
+    })
   }
 
   function handleBatchAdd() {
@@ -56,6 +93,7 @@ export default function CatalogView({ onSwitchToList }) {
         name: item.name,
         quantity: 1,
         price: item.defaultPrice || 0,
+        catalogId: item.id,
       }))
 
     actions.batchAddToList({ items: itemsToAdd })
@@ -65,8 +103,7 @@ export default function CatalogView({ onSwitchToList }) {
     }
   }
 
-  function handleRemoveItem(id, e) {
-    e.stopPropagation()
+  function handleRemoveItem(id) {
     actions.removeFromCatalog({ id })
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -80,18 +117,95 @@ export default function CatalogView({ onSwitchToList }) {
     setEditingItem(null)
   }
 
+  function handleOpenImport() {
+    fileInputRef.current?.click()
+  }
+
+  async function handleFilePicked(e) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow picking the same file again
+    if (!file) return
+    try {
+      const { items, skipped } = parseCatalogCsv(await file.text())
+      const { added, updated, unchanged } = mergeCatalog(catalogItems, items)
+      setPendingImport({ fileName: file.name, items, added, updated, unchanged, skipped })
+    } catch (error) {
+      console.error('Failed to read catalog CSV:', error)
+      setNotice({ tone: 'error', text: 'Could not read that file. Please choose a CSV file.' })
+    }
+  }
+
+  function handleConfirmImport() {
+    if (!pendingImport) return
+    const { items, added, updated } = pendingImport
+    actions.importCatalog({ items })
+    setPendingImport(null)
+    const parts = []
+    if (added) parts.push(`${added} new`)
+    if (updated) parts.push(`${updated} updated`)
+    setNotice({ tone: 'success', text: `Imported staples: ${parts.join(', ')}.` })
+  }
+
+  async function handleExport() {
+    try {
+      const result = await exportCatalogCsv(catalogItems)
+      if (result.method === 'saved') {
+        setNotice({ tone: 'success', text: `Saved to ${result.location}` })
+      } else if (result.method === 'downloaded') {
+        setNotice({ tone: 'success', text: `Downloaded ${result.filename}` })
+      }
+    } catch (error) {
+      if (/cancel/i.test(error?.message || '')) return
+      console.error('Failed to export catalog:', error)
+      setNotice({
+        tone: 'error',
+        text:
+          error?.code === 'PERMISSION_DENIED'
+            ? 'Storage permission is needed to save the file.'
+            : 'Could not export the catalog. Please try again.',
+      })
+    }
+  }
+
   return (
-    <div className="flex-1 flex flex-col p-4 sm:p-6 max-w-2xl mx-auto w-full pb-28">
-      {/* Top Controls: Search Bar + Add Button */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-warm-gray" />
+    <div className="px-4 pb-32 overflow-x-hidden">
+      {/* 1. Catalog Summary (mirrors Shopping Progress on the List page) */}
+      {catalogItems.length > 0 && (
+        <div className="mt-4 w-full">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-warm-gray">
+              <BookOpen className="h-4 w-4 text-green" />
+              <span>Staples Catalog</span>
+            </div>
+            <CatalogDataMenu
+              onImport={handleOpenImport}
+              onExport={handleExport}
+              canExport={catalogItems.length > 0}
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs font-bold text-warm-dark">
+            <span className="font-mono text-xs text-warm-dark">
+              {catalogItems.length === 1 ? '1 staple saved' : `${catalogItems.length} staples saved`}
+            </span>
+            {onListCount > 0 && (
+              <span className="rounded-full bg-green/15 text-green font-mono font-black px-2 py-0.5 text-[11px]">
+                {onListCount} on list
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 2. Search, Add Staple & Sort Controls Row */}
+      <div className="mt-4 flex items-center gap-2.5">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-warm-gray" />
           <input
             type="text"
-            placeholder="Search your staples catalog..."
+            placeholder="Search staples..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-xl bg-surface border border-border/80 pl-11 pr-4 py-3 text-sm font-semibold text-warm-dark placeholder:text-warm-muted focus:border-green focus:outline-none shadow-none transition-colors"
+            className="w-full h-10 rounded-xl bg-surface border border-border/80 pl-9 pr-12 text-xs font-semibold text-warm-dark placeholder:text-warm-muted focus:border-green focus:outline-none shadow-none transition-colors"
           />
           {searchQuery && (
             <button
@@ -107,180 +221,105 @@ export default function CatalogView({ onSwitchToList }) {
         <button
           type="button"
           onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center justify-center gap-2 rounded-xl bg-green px-5 py-3 text-sm font-extrabold text-white hover:bg-green-light active:scale-95 transition-all shadow-none shrink-0"
+          className="rounded-xl bg-green px-4 h-10 text-xs font-bold text-white transition-all hover:bg-green-light active:scale-[0.98] flex items-center gap-1.5 shadow-none shrink-0"
         >
-          <Plus className="h-5 w-5 stroke-[2.5]" />
-          <span>Add Catalog Item</span>
+          <Plus className="h-4 w-4 stroke-2" />
+          <span>Add Staple</span>
         </button>
-      </div>
-
-      {/* Catalog Header Info / Select All / Sorting */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-2 mb-4">
-        {filteredItems.length > 0 ? (
-          <div className="flex items-center gap-4 text-xs font-bold text-warm-gray">
-            <button
-              type="button"
-              onClick={handleSelectAll}
-              className="flex items-center gap-2 hover:text-warm-dark transition-colors"
-            >
-              <div
-                className={`h-4 w-4 rounded-md border flex items-center justify-center transition-all ${
-                  selectedIds.size === filteredItems.length && filteredItems.length > 0
-                    ? 'bg-green border-green text-white'
-                    : 'bg-surface border-border/80'
-                }`}
-              >
-                {selectedIds.size === filteredItems.length && filteredItems.length > 0 && (
-                  <Check className="h-3 w-3 stroke-[3]" />
-                )}
-              </div>
-              <span>
-                {selectedIds.size === filteredItems.length && filteredItems.length > 0
-                  ? 'Deselect All'
-                  : 'Select All'}
-              </span>
-            </button>
-            <span>
-              {selectedIds.size} of {catalogItems.length} selected
-            </span>
-          </div>
-        ) : (
-          <div />
-        )}
 
         {catalogItems.length > 1 && (
           <SortControls sortOrder={sortOrder} onSortChange={setSortOrder} />
         )}
       </div>
 
-      {/* Catalog Items List */}
-      {filteredItems.length === 0 ? (
-        <div className="my-auto py-16 text-center animate-fadeIn">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-surface border border-border/60 text-warm-gray mb-4">
-            <BookOpen className="h-8 w-8 stroke-[1.75]" />
-          </div>
-          <h3 className="text-base font-black text-warm-dark">
-            {searchQuery ? 'No matching staples found' : 'Your Staples Catalog is empty'}
-          </h3>
-          <p className="text-xs font-medium text-warm-gray mt-1.5 max-w-xs mx-auto leading-relaxed">
-            {searchQuery
-              ? 'Try searching for a different item name.'
-              : 'Add your frequently bought items here so you can check off staples in seconds!'}
-          </p>
-          {!searchQuery && (
-            <button
-              type="button"
-              onClick={() => setIsAddModalOpen(true)}
-              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-surface border border-border/80 px-4 py-2.5 text-xs font-bold text-warm-dark hover:bg-cream transition-colors"
-            >
-              <Plus className="h-4 w-4 stroke-[2.5]" />
-              <span>Add Your First Staple</span>
-            </button>
+      {/* Import / Export result */}
+      {notice && (
+        <div
+          role="status"
+          className={`mt-3 flex items-start gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-bold ${
+            notice.tone === 'error'
+              ? 'bg-danger-muted border-danger/20 text-danger'
+              : 'bg-green-muted border-green-border text-green'
+          }`}
+        >
+          {notice.tone === 'error' ? (
+            <AlertTriangle className="h-4 w-4 shrink-0 stroke-[2.5]" />
+          ) : (
+            <CheckCircle2 className="h-4 w-4 shrink-0 stroke-[2.5]" />
           )}
+          <span className="min-w-0 break-all">{notice.text}</span>
         </div>
-      ) : (
-        <div className="space-y-2.5">
-          {filteredItems.map((item) => {
-            const isSelected = selectedIds.has(item.id)
+      )}
 
-            return (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.2 }}
-                key={item.id}
-                onClick={() => handleToggleSelect(item.id)}
-                className={`group relative flex items-center justify-between rounded-xl border p-4 transition-all cursor-pointer select-none ${
-                  isSelected
-                    ? 'bg-green/10 border-green text-warm-dark shadow-2xs'
-                    : 'bg-surface border-border/70 text-warm-dark hover:border-border hover:shadow-2xs'
-                }`}
+      {/* Main Catalog Section */}
+      <div className="mt-5">
+        {catalogItems.length === 0 ? (
+          <EmptyState
+            icon={<BookOpen className="h-6 w-6 text-warm-gray stroke-[1.75]" />}
+            title="Your staples catalog is empty"
+            description="Tap Add Staple above to save items you buy often, or import a CSV list."
+            action={
+              <button
+                type="button"
+                onClick={handleOpenImport}
+                className="rounded-xl bg-surface border border-border/80 px-4 h-10 text-xs font-bold text-warm-dark hover:bg-cream-dark transition-colors flex items-center gap-1.5"
               >
-                <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-all ${
-                      isSelected
-                        ? 'border-green bg-green text-white'
-                        : 'border-border/80 bg-cream group-hover:border-warm-gray'
-                    }`}
-                  >
-                    {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="font-bold text-sm sm:text-base break-words">
-                      {item.name}
-                    </div>
-                    {item.defaultPrice > 0 && (
-                      <div className="text-xs font-semibold text-warm-gray mt-0.5">
-                        Default: ₱{item.defaultPrice.toFixed(2)} / pcs
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1 pl-3">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setEditingItem(item)
-                    }}
-                    className="rounded-lg p-2 text-warm-gray hover:bg-cream hover:text-warm-dark transition-colors opacity-80 sm:opacity-0 sm:group-hover:opacity-100"
-                    title="Edit staple"
-                    aria-label="Edit staple"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setDeletingItem(item)
-                    }}
-                    className="rounded-lg p-2 text-warm-gray hover:bg-cream hover:text-red transition-colors opacity-80 sm:opacity-0 sm:group-hover:opacity-100"
-                    title="Remove from catalog"
-                    aria-label="Remove from catalog"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </motion.div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Floating Batch Action Bar */}
-      {selectedIds.size > 0 && (
-        <div className="fixed bottom-24 left-0 right-0 z-40 px-4 flex justify-center animate-fadeIn">
-          <div className="w-full max-w-md bg-warm-dark text-white rounded-2xl p-4 shadow-2xl flex items-center justify-between gap-4 border border-warm-gray/30">
-            <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-xl bg-green text-white font-black text-sm flex items-center justify-center">
-                {selectedIds.size}
-              </div>
-              <div>
-                <div className="text-xs sm:text-sm font-black tracking-tight">
-                  {selectedIds.size === 1 ? '1 staple selected' : `${selectedIds.size} staples selected`}
-                </div>
-                <div className="text-[11px] text-warm-muted">
-                  Ready to add to Daily List
-                </div>
-              </div>
+                <Upload className="h-4 w-4 stroke-2" />
+                <span>Import from CSV</span>
+              </button>
+            }
+          />
+        ) : filteredItems.length === 0 ? (
+          <EmptyState
+            icon={<Search className="h-6 w-6 text-warm-gray stroke-[1.75]" />}
+            title="No matching staples"
+            description="Try a different name."
+            action={
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="rounded-xl bg-surface border border-border/80 px-4 h-10 text-xs font-bold text-warm-dark hover:bg-cream-dark transition-colors"
+              >
+                Clear search
+              </button>
+            }
+          />
+        ) : (
+          <div>
+            <div className="mb-2.5 flex items-center justify-between">
+              <h2 className="text-xs font-extrabold uppercase tracking-widest text-warm-gray">
+                {isSearching ? 'Results' : 'All Staples'} ({filteredItems.length})
+              </h2>
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="text-xs font-bold text-warm-gray hover:text-green transition-colors flex items-center gap-1.5"
+              >
+                <CheckCheck className="h-3.5 w-3.5" />
+                <span>{allFilteredSelected ? 'Deselect all' : 'Select all'}</span>
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={handleBatchAdd}
-              className="flex items-center gap-2 rounded-xl bg-green px-5 py-2.5 text-xs sm:text-sm font-black text-white hover:bg-green-light active:scale-95 transition-all shadow-none shrink-0"
-            >
-              <span>Add to List</span>
-              <ArrowRight className="h-4 w-4 stroke-[2.5]" />
-            </button>
+            <div className="divide-y divide-border/50">
+              <AnimatePresence>
+                {filteredItems.map((item) => (
+                  <CatalogItemRow
+                    key={item.id}
+                    item={item}
+                    isSelected={selectedIds.has(item.id)}
+                    isOnList={onListIds.has(item.id)}
+                    onToggle={handleToggleSelect}
+                    onEdit={setEditingItem}
+                    onRemove={setDeletingItem}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Selection Bar docked right above BottomNav */}
+      <CatalogSelectionBar selectedCount={selectedIds.size} onAdd={handleBatchAdd} />
 
       {/* Modal for adding a custom item to the catalog */}
       <AddCatalogItemModal
@@ -296,12 +335,30 @@ export default function CatalogView({ onSwitchToList }) {
         onConfirm={handleSaveEdit}
       />
 
+      {/* Hidden picker for catalog CSV import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,text/csv,text/comma-separated-values,text/plain"
+        onChange={handleFilePicked}
+        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+        data-testid="catalog-import-input"
+      />
+
+      <ImportCatalogModal
+        preview={pendingImport}
+        onConfirm={handleConfirmImport}
+        onClose={() => setPendingImport(null)}
+      />
+
       <ConfirmDeleteModal
         isOpen={Boolean(deletingItem)}
         onClose={() => setDeletingItem(null)}
         onConfirm={() => {
           if (deletingItem) {
-            handleRemoveItem(deletingItem.id, { stopPropagation: () => {} })
+            handleRemoveItem(deletingItem.id)
             setDeletingItem(null)
           }
         }}

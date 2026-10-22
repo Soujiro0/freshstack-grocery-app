@@ -53,7 +53,7 @@ const BottomCartDrawer = memo(function BottomCartDrawer({ checkedItems = [], onC
       </div>
 
       {/* 2. Compact summary bar (when closed, sleek sizing without bulky button wedged inside) */}
-      <div className="px-6 py-3 flex items-center justify-between">
+      <div className="px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <CheckCircle2 className="h-4 w-4 text-green shrink-0 stroke-[2.5]" />
           <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-warm-dark truncate">
@@ -80,7 +80,7 @@ const BottomCartDrawer = memo(function BottomCartDrawer({ checkedItems = [], onC
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="overflow-hidden border-t border-border/50 bg-cream/70 px-6 pt-3.5 pb-5"
+            className="overflow-hidden border-t border-border/50 bg-cream/70 px-4 pt-3.5 pb-5"
           >
             <button
               type="button"

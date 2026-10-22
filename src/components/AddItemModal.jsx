@@ -96,7 +96,12 @@ export default function AddItemModal({ isOpen, onClose }) {
     if (selectedIds.size === 0) return
     const itemsToAdd = catalogItems
       .filter((item) => selectedIds.has(item.id))
-      .map((item) => ({ name: item.name, quantity: 1, price: item.defaultPrice || 0 }))
+      .map((item) => ({
+        name: item.name,
+        quantity: 1,
+        price: item.defaultPrice || 0,
+        catalogId: item.id,
+      }))
     actions.batchAddToList({ items: itemsToAdd })
     onClose()
   }

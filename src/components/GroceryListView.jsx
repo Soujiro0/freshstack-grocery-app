@@ -81,7 +81,7 @@ export default function GroceryListView() {
   const handleGenerateReceipt = useCallback(() => setIsReceiptModalOpen(true), [])
 
   return (
-    <div className="px-6 pb-56 overflow-x-hidden">
+    <div className="px-4 pb-56 overflow-x-hidden">
       {/* 1. Shopping Progress Bar full-length container without border (Wireframe Layout: input_file_3.png) */}
       {items.length > 0 && (
         <div className="mt-4 w-full">
